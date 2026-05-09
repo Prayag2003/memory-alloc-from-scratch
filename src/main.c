@@ -27,6 +27,10 @@ Heap_Block_List heap_freed_blocks = {
         [0] = {.start = heap_buffer, .size = sizeof(heap_buffer)}}
 };
 
+/*
+ * Prints every block in a block list.
+ * Displays the index, start address, and size of each block.
+ */
 void chunk_list_dump(const Heap_Block_List *list)
 {
     printf("Allocated blocks: %zu\n", list->count);
@@ -36,6 +40,10 @@ void chunk_list_dump(const Heap_Block_List *list)
     }
 }
 
+/*
+ * Comparator for two Heap_Blocks by start address.
+ * Used by bsearch / qsort to keep blocks ordered.
+ */
 int chunk_compare(const void *a, const void *b)
 {
     const Heap_Block *block_a = (const Heap_Block *)a;
@@ -43,6 +51,11 @@ int chunk_compare(const void *a, const void *b)
     return block_a->start - block_b->start;
 }
 
+/*
+ * Binary-searches the block list for a block whose
+ * start address matches 'ptr'.
+ * Returns the index if found; undefined if not found.
+ */
 int chunk_list_find(const Heap_Block_List *list, void *ptr)
 {
     Heap_Block key = {.start = ptr};
@@ -56,6 +69,10 @@ int chunk_list_find(const Heap_Block_List *list, void *ptr)
     }
 }
 
+/*
+ * Removes the block at 'index' by shifting all
+ * subsequent blocks one position to the left.
+ */
 void chunk_list_remove(Heap_Block_List *list, size_t index)
 {
     assert(index < list->count && "chunk_list_remove: index out of bounds");
@@ -67,6 +84,10 @@ void chunk_list_remove(Heap_Block_List *list, size_t index)
     list->count--;
 }
 
+/*
+ * Appends a new block and insertion-sorts it so the
+ * list stays ordered by start address.
+ */
 void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
 {
     assert(list->count < HEAP_BLOCK_LIST_CAPACITY && "chunk_list_add: block list capacity exceeded");
@@ -89,7 +110,12 @@ void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
     list->count++;
 }
 
-/* Allocate 'size' bytes from our linear heap */
+/*
+ * First-fit allocation: scans the free list for the
+ * first block large enough, splits it if needed, and
+ * moves the allocated portion to the allocated list.
+ * Returns NULL when no suitable free block exists.
+ */
 void *heap_alloc(size_t size)
 {
     if (size <= 0)
@@ -113,6 +139,11 @@ void *heap_alloc(size_t size)
     return NULL;
 }
 
+/*
+ * Frees a previously allocated block.
+ * Finds it in the allocated list, moves it
+ * to the freed list, and removes it from allocated.
+ */
 void heap_free(void *ptr)
 {
     if (ptr == NULL)
@@ -127,6 +158,10 @@ void heap_free(void *ptr)
     chunk_list_remove(&heap_allocated_blocks, index);
 }
 
+/*
+ * Placeholder for a future garbage collector.
+ * Not yet implemented — will abort if called.
+ */
 void gc_collect(void *root)
 {
     (void)root;
