@@ -2,12 +2,23 @@
 #include <assert.h>
 
 #define HEAP_CAPACITY 1280000
+#define HEAP_ALLOCATED_BLOCKS_CAPACITY 4096
 
 /* Internal Heap Storage */
 static char heap_buffer[HEAP_CAPACITY] = {0};
 size_t heap_size = 0;
 
-static int heap_has_space(size_t n)
+typedef struct
+{
+    void *start;
+    size_t size;
+} Heap_Block;
+
+Heap_Block heap_allocated_blocks[HEAP_ALLOCATED_BLOCKS_CAPACITY];
+size_t heap_allocated_blocks_size = 0;
+
+static int
+heap_has_space(size_t n)
 {
     return heap_size + n <= HEAP_CAPACITY;
 }
@@ -15,11 +26,32 @@ static int heap_has_space(size_t n)
 /* Allocate 'size' bytes from our linear heap */
 void *heap_alloc(size_t size)
 {
+    if (size <= 0)
+        return NULL;
+
     assert(heap_has_space(size) && "heap_alloc: out of memory");
 
-    void *result = heap_buffer + heap_size;
+    void *ptr = heap_buffer + heap_size;
     heap_size += size;
-    return result;
+
+    const Heap_Block block = {
+        .start = ptr,
+        .size = size,
+    };
+    assert(heap_allocated_blocks_size < HEAP_ALLOCATED_BLOCKS_CAPACITY && "heap_alloc: too many allocated blocks");
+
+    heap_allocated_blocks[heap_allocated_blocks_size++] = block;
+
+    return ptr;
+}
+
+void heap_dump_allocated_blocks(void)
+{
+    printf("Allocated blocks: %zu\n", heap_allocated_blocks_size);
+    for (size_t i = 0; i < heap_allocated_blocks_size; i++)
+    {
+        printf("Block %zu: start=%p, size=%zu\n", i, heap_allocated_blocks[i].start, heap_allocated_blocks[i].size);
+    }
 }
 
 void heap_free(void *ptr)
@@ -34,13 +66,13 @@ void gc_collect(void *root)
     assert(0 && "gc_collect is not implemented");
 }
 
-int main()
+int main(void)
 {
-    // a pointer in stack that points to the heap
-    char *root = heap_alloc(10);
     for (int i = 0; i < 10; i++)
-    {
-        root[i] = '1' + i;
-    }
+        heap_alloc(i);
+
+    heap_dump_allocated_blocks();
+    // heap_free(root);
+
     return 0;
 }
