@@ -2,23 +2,11 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define HEAP_CAPACITY 128000 // 128 KB
-#define HEAP_BLOCK_LIST_CAPACITY 8192 // 8 KB
+#include "heap.h"
+#include "display.h"
 
 /* Internal Heap Storage */
-static char heap_buffer[HEAP_CAPACITY] = {0};
-
-typedef struct
-{
-    void *start;
-    size_t size;
-} Heap_Block;
-
-typedef struct
-{
-    size_t count;
-    Heap_Block blocks[HEAP_BLOCK_LIST_CAPACITY];
-} Heap_Block_List;
+char heap_buffer[HEAP_CAPACITY] = {0};
 
 Heap_Block_List heap_allocated_blocks = {0};
 Heap_Block_List heap_freed_blocks = {
@@ -26,19 +14,6 @@ Heap_Block_List heap_freed_blocks = {
     .blocks = {
         [0] = {.start = heap_buffer, .size = sizeof(heap_buffer)}}
 };
-
-/*
- * Prints every block in a block list.
- * Displays the index, start address, and size of each block.
- */
-void chunk_list_dump(const Heap_Block_List *list)
-{
-    printf("Allocated blocks: %zu\n", list->count);
-    for (size_t i = 0; i < list->count; i++)
-    {
-        printf("Block %zu: start=%p, size=%zu\n", i, list->blocks[i].start, list->blocks[i].size);
-    }
-}
 
 /*
  * Comparator for two Heap_Blocks by start address.
@@ -119,7 +94,10 @@ void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
 void *heap_alloc(size_t size)
 {
     if (size <= 0)
+    {
+        LOG_ERROR("alloc of 0 bytes ignored");
         return NULL;
+    }
 
     for(size_t i = 0; i < heap_freed_blocks.count; i++){
         const Heap_Block block = heap_freed_blocks.blocks[i];
@@ -133,9 +111,11 @@ void *heap_alloc(size_t size)
             if(tail_size > 0){
                 chunk_list_add(&heap_freed_blocks, ptr + size, tail_size);
             }
+            LOG_ALLOC(ptr, size);
             return ptr;
         }
     }
+    LOG_ERROR("out of memory — no free block large enough");
     return NULL;
 }
 
@@ -147,15 +127,20 @@ void *heap_alloc(size_t size)
 void heap_free(void *ptr)
 {
     if (ptr == NULL)
+    {
+        LOG_ERROR("free(NULL) ignored");
         return;
+    }
 
     const int index = chunk_list_find(&heap_allocated_blocks, ptr);
 
     assert(index >= 0 && "heap_free: pointer not found in allocated blocks");
 
-    chunk_list_add(&heap_freed_blocks, heap_allocated_blocks.blocks[index].start, heap_allocated_blocks.blocks[index].size);
+    size_t freed_size = heap_allocated_blocks.blocks[index].size;
+    chunk_list_add(&heap_freed_blocks, heap_allocated_blocks.blocks[index].start, freed_size);
 
     chunk_list_remove(&heap_allocated_blocks, index);
+    LOG_FREE(ptr, freed_size);
 }
 
 /*
@@ -170,6 +155,11 @@ void gc_collect(void *root)
 
 int main(void)
 {
+    print_banner();
+
+    LOG_INFO("Starting allocation test (10 blocks, freeing evens)...");
+    printf("\n");
+
     for (int i = 0; i < 10; i++)
     {
         void *p = heap_alloc(i);
@@ -179,8 +169,11 @@ int main(void)
         }
     }
 
-    chunk_list_dump(&heap_allocated_blocks);
-    chunk_list_dump(&heap_freed_blocks);
+    chunk_list_dump(CLR_GREEN "Allocated Blocks", CLR_GREEN, &heap_allocated_blocks);
+    chunk_list_dump(CLR_YELLOW "Free Blocks", CLR_YELLOW, &heap_freed_blocks);
 
+    heap_visualize();
+
+    printf("\n");
     return 0;
 }
