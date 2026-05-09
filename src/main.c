@@ -2,12 +2,11 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define HEAP_CAPACITY 1280000
-#define HEAP_BLOCK_LIST_CAPACITY 4096
+#define HEAP_CAPACITY 128000 // 128 KB
+#define HEAP_BLOCK_LIST_CAPACITY 8192 // 8 KB
 
 /* Internal Heap Storage */
 static char heap_buffer[HEAP_CAPACITY] = {0};
-size_t heap_size = 0;
 
 typedef struct
 {
@@ -22,7 +21,11 @@ typedef struct
 } Heap_Block_List;
 
 Heap_Block_List heap_allocated_blocks = {0};
-Heap_Block_List heap_freed_blocks = {0};
+Heap_Block_List heap_freed_blocks = {
+    .count = 1, 
+    .blocks = {
+        [0] = {.start = heap_buffer, .size = sizeof(heap_buffer)}}
+};
 
 void chunk_list_dump(const Heap_Block_List *list)
 {
@@ -86,23 +89,28 @@ void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
     list->count++;
 }
 
-static int heap_has_space(size_t n)
-{
-    return heap_size + n <= HEAP_CAPACITY;
-}
-
 /* Allocate 'size' bytes from our linear heap */
 void *heap_alloc(size_t size)
 {
     if (size <= 0)
         return NULL;
 
-    assert(heap_has_space(size) && "heap_alloc: out of memory");
+    for(size_t i = 0; i < heap_freed_blocks.count; i++){
+        const Heap_Block block = heap_freed_blocks.blocks[i];
+        if(block.size >= size){
+            chunk_list_remove(&heap_freed_blocks, i);
+            void *ptr = block.start;
+            size_t tail_size = block.size - size;
+        
+            chunk_list_add(&heap_allocated_blocks, ptr, size);
 
-    void *ptr = heap_buffer + heap_size;
-    heap_size += size;
-    chunk_list_add(&heap_allocated_blocks, ptr, size);
-    return ptr;
+            if(tail_size > 0){
+                chunk_list_add(&heap_freed_blocks, ptr + size, tail_size);
+            }
+            return ptr;
+        }
+    }
+    return NULL;
 }
 
 void heap_free(void *ptr)
