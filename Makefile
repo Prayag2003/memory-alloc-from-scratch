@@ -1,7 +1,7 @@
 CC = clang
 CFLAGS = -Wall -Wextra -pedantic -std=c17 -g
 TARGET = heap
-SRC = main.c
+SRC = src/main.c
 
 .PHONY: all run debug clean
 

@@ -22,6 +22,18 @@ void *heap_alloc(size_t size)
     return result;
 }
 
+void heap_free(void *ptr)
+{
+    (void)ptr;
+    assert(0 && "heap_free is not implemented");
+}
+
+void gc_collect(void *root)
+{
+    (void)root;
+    assert(0 && "gc_collect is not implemented");
+}
+
 int main()
 {
     // a pointer in stack that points to the heap
