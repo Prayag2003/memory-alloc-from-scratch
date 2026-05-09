@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #define HEAP_CAPACITY 1280000
 #define HEAP_BLOCK_LIST_CAPACITY 4096
@@ -32,12 +33,35 @@ void chunk_list_dump(const Heap_Block_List *list)
     }
 }
 
+int chunk_compare(const void *a, const void *b)
+{
+    const Heap_Block *block_a = (const Heap_Block *)a;
+    const Heap_Block *block_b = (const Heap_Block *)b;
+    return block_a->start - block_b->start;
+}
+
 int chunk_list_find(const Heap_Block_List *list, void *ptr)
 {
+    Heap_Block key = {.start = ptr};
+    Heap_Block *res = bsearch(&key, list->blocks,
+                              list->count, list->blocks[0].size,
+                              chunk_compare);
+    if (res != 0)
+    {
+        assert(list->blocks <= res);
+        return (res - list->blocks) / sizeof(list->blocks[0]);
+    }
 }
 
 void chunk_list_remove(Heap_Block_List *list, size_t index)
 {
+    assert(index < list->count && "chunk_list_remove: index out of bounds");
+
+    for (size_t i = index; i < list->count - 1; i++)
+    {
+        list->blocks[i] = list->blocks[i + 1];
+    }
+    list->count--;
 }
 
 void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
@@ -83,6 +107,16 @@ void *heap_alloc(size_t size)
 
 void heap_free(void *ptr)
 {
+    if (ptr == NULL)
+        return;
+
+    const int index = chunk_list_find(&heap_allocated_blocks, ptr);
+
+    assert(index >= 0 && "heap_free: pointer not found in allocated blocks");
+
+    chunk_list_add(&heap_freed_blocks, heap_allocated_blocks.blocks[index].start, heap_allocated_blocks.blocks[index].size);
+
+    chunk_list_remove(&heap_allocated_blocks, index);
 }
 
 void gc_collect(void *root)
@@ -96,14 +130,14 @@ int main(void)
     for (int i = 0; i < 10; i++)
     {
         void *p = heap_alloc(i);
-        // if (i & 1)
-        // {
-        //     heap_free(p);
-        // }
+        if (i % 2 == 0)
+        {
+            heap_free(p);
+        }
     }
 
     chunk_list_dump(&heap_allocated_blocks);
-    // heap_free(root);
+    chunk_list_dump(&heap_freed_blocks);
 
     return 0;
 }
