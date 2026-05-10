@@ -26,6 +26,7 @@ extern Heap_Block_List heap_freed_blocks;
 /* ── Allocator API ── */
 void *heap_alloc(size_t size);
 void  heap_free(void *ptr);
+void  heap_coalesce_free_blocks(void);
 void  gc_collect(void *root);
 
 /* ── Block list operations ── */

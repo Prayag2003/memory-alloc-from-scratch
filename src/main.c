@@ -35,13 +35,14 @@ int chunk_list_find(const Heap_Block_List *list, void *ptr)
 {
     Heap_Block key = {.start = ptr};
     Heap_Block *res = bsearch(&key, list->blocks,
-                              list->count, list->blocks[0].size,
+                              list->count, sizeof(list->blocks[0]),
                               chunk_compare);
-    if (res != 0)
+    if (res != NULL)
     {
         assert(list->blocks <= res);
-        return (res - list->blocks) / sizeof(list->blocks[0]);
+        return (int)(res - list->blocks);
     }
+    return -1;
 }
 
 /*
@@ -71,7 +72,7 @@ void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
     list->blocks[list->count].size = size;
 
     // we perform sorting on every add to keep the list ordered by start address
-    for (size_t i = list->count - 1; i > 0; i--)
+    for (size_t i = list->count; i > 0; i--)
     {
         if (list->blocks[i - 1].start > list->blocks[i].start)
         {
@@ -141,6 +142,34 @@ void heap_free(void *ptr)
 
     chunk_list_remove(&heap_allocated_blocks, index);
     LOG_FREE(ptr, freed_size);
+
+    /* Coalesce adjacent free blocks to reduce fragmentation */
+    heap_coalesce_free_blocks();
+}
+
+/*
+ * Merges adjacent free blocks into larger ones.
+ * The free list is kept sorted by start address,
+ * so we just scan for consecutive blocks that touch.
+ */
+void heap_coalesce_free_blocks(void)
+{
+    for (size_t i = 0; i + 1 < heap_freed_blocks.count; )
+    {
+        Heap_Block *curr = &heap_freed_blocks.blocks[i];
+        Heap_Block *next = &heap_freed_blocks.blocks[i + 1];
+
+        if ((char *)curr->start + curr->size == (char *)next->start)
+        {
+            /* Merge 'next' into 'curr' */
+            curr->size += next->size;
+            chunk_list_remove(&heap_freed_blocks, i + 1);
+        }
+        else
+        {
+            i++;
+        }
+    }
 }
 
 /*
@@ -167,6 +196,12 @@ int main(void)
         {
             heap_free(p);
         }
+    }
+    
+    // heap_alloc(100);
+
+    for(int i = 1; i <= 4; i++){
+        heap_alloc(i); 
     }
 
     chunk_list_dump(CLR_GREEN "Allocated Blocks", CLR_GREEN, &heap_allocated_blocks);
