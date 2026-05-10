@@ -1,6 +1,6 @@
-# 🧠 Memory Allocator - From Scratch
+# Memory Allocator (malloc) - From Scratch
 
-#### NOTE: Documentation generated via Antigravity 
+#### NOTE: Documentation, comments, visualization code generated via Antigravity 
 
 A minimal, educational **first-fit free-list memory allocator** written in C17. This project implements dynamic memory management using a static buffer and manual bookkeeping, without relying on `malloc` or `sbrk`.
 
