@@ -15,6 +15,10 @@ Heap_Block_List heap_freed_blocks = {
         [0] = {.start = heap_buffer, .size = sizeof(heap_buffer)}}
 };
 
+/* High-water mark: tracks the furthest point the heap has ever allocated to.
+ * Any allocation below this address is reusing previously freed memory. */
+static void *heap_high_water = heap_buffer;
+
 /*
  * Comparator for two Heap_Blocks by start address.
  * Used by bsearch / qsort to keep blocks ordered.
@@ -110,9 +114,20 @@ void *heap_alloc(size_t size)
             chunk_list_add(&heap_allocated_blocks, ptr, size);
 
             if(tail_size > 0){
-                chunk_list_add(&heap_freed_blocks, ptr + size, tail_size);
+                chunk_list_add(&heap_freed_blocks, (char *)ptr + size, tail_size);
             }
-            LOG_ALLOC(ptr, size);
+
+            /* Detect reuse: if this address is below the high-water mark,
+             * we're filling a hole left by a previous free(). */
+            if ((char *)ptr + size > (char *)heap_high_water)
+            {
+                heap_high_water = (char *)ptr + size;
+                LOG_ALLOC(ptr, size);
+            }
+            else
+            {
+                LOG_ALLOC_REUSE(ptr, size);
+            }
             return ptr;
         }
     }
@@ -189,19 +204,31 @@ int main(void)
     LOG_INFO("Starting allocation test (10 blocks, freeing evens)...");
     printf("\n");
 
+    /* Phase 1: Allocate 10 blocks, keep all of them */
+    void *ptrs[10] = {0};
     for (int i = 0; i < 10; i++)
     {
-        void *p = heap_alloc(i);
-        if (i % 2 == 0)
-        {
-            heap_free(p);
-        }
+        ptrs[i] = heap_alloc(i);
     }
-    
-    // heap_alloc(100);
 
-    for(int i = 1; i <= 4; i++){
-        heap_alloc(i); 
+    printf("\n");
+    LOG_INFO("Freeing even-indexed blocks to create holes...");
+    printf("\n");
+
+    /* Phase 2: Free even-indexed blocks — creates holes in the middle */
+    for (int i = 2; i < 10; i += 2)
+    {
+        heap_free(ptrs[i]);
+    }
+
+    printf("\n");
+    LOG_INFO("Re-allocating into freed holes...");
+    printf("\n");
+
+    /* Phase 3: Allocate again — should reuse the freed holes */
+    for (int i = 1; i <= 4; i++)
+    {
+        heap_alloc(i);
     }
 
     chunk_list_dump(CLR_GREEN "Allocated Blocks", CLR_GREEN, &heap_allocated_blocks);

@@ -22,6 +22,11 @@
     printf(CLR_GREEN CLR_BOLD "  [ALLOC]" CLR_RESET \
            CLR_GREEN " %zu bytes at %p" CLR_RESET "\n", (size_t)(size), (void *)(ptr))
 
+#define LOG_ALLOC_REUSE(ptr, size) \
+    printf(CLR_GREEN CLR_BOLD "  [ALLOC]" CLR_RESET \
+           CLR_GREEN " %zu bytes at %p" CLR_RESET \
+           CLR_CYAN CLR_BOLD " (REUSED)" CLR_RESET "\n", (size_t)(size), (void *)(ptr))
+
 #define LOG_FREE(ptr, size) \
     printf(CLR_YELLOW CLR_BOLD "  [FREE] " CLR_RESET \
            CLR_YELLOW "%zu bytes at %p" CLR_RESET "\n", (size_t)(size), (void *)(ptr))
