@@ -16,7 +16,7 @@ A minimal, educational **first-fit free-list memory allocator** written in C17. 
 
 ## Output
 
-![Terminal output](./assets/output.png)
+![Terminal output](./assets/demo.png)
 
 ---
 
