@@ -6,10 +6,17 @@ A minimal, educational **first-fit free-list memory allocator** written in C17. 
 
 ## Table of Contents
 
+- [Output](#output)
 - [How It Works](#how-it-works)
 - [Project Structure](#project-structure)
 - [Build & Run](#build--run)
 - [Roadmap](#roadmap)
+
+---
+
+## Output
+
+![Terminal output](./assets/output.png)
 
 ---
 
