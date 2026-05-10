@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "heap.h"
 #include "display.h"
@@ -8,8 +9,8 @@
 /* Internal Heap Storage */
 char heap_buffer[HEAP_CAPACITY] = {0};
 
-Heap_Block_List heap_allocated_blocks = {0};
-Heap_Block_List heap_freed_blocks = {
+MemBlockList allocated_blocks = {0};
+MemBlockList free_blocks = {
     .count = 1, 
     .blocks = {
         [0] = {.start = heap_buffer, .size = sizeof(heap_buffer)}}
@@ -20,14 +21,14 @@ Heap_Block_List heap_freed_blocks = {
 static void *heap_high_water = heap_buffer;
 
 /*
- * Comparator for two Heap_Blocks by start address.
+ * Comparator for two MemBlocks by start address.
  * Used by bsearch / qsort to keep blocks ordered.
  */
-int chunk_compare(const void *a, const void *b)
+int block_compare(const void *a, const void *b)
 {
-    const Heap_Block *block_a = (const Heap_Block *)a;
-    const Heap_Block *block_b = (const Heap_Block *)b;
-    return block_a->start - block_b->start;
+    const MemBlock *block_a = (const MemBlock *)a;
+    const MemBlock *block_b = (const MemBlock *)b;
+    return (char *)block_a->start - (char *)block_b->start;
 }
 
 /*
@@ -35,12 +36,12 @@ int chunk_compare(const void *a, const void *b)
  * start address matches 'ptr'.
  * Returns the index if found; undefined if not found.
  */
-int chunk_list_find(const Heap_Block_List *list, void *ptr)
+int block_list_find(const MemBlockList *list, void *ptr)
 {
-    Heap_Block key = {.start = ptr};
-    Heap_Block *res = bsearch(&key, list->blocks,
+    MemBlock key = {.start = ptr};
+    MemBlock *res = bsearch(&key, list->blocks,
                               list->count, sizeof(list->blocks[0]),
-                              chunk_compare);
+                              block_compare);
     if (res != NULL)
     {
         assert(list->blocks <= res);
@@ -53,9 +54,9 @@ int chunk_list_find(const Heap_Block_List *list, void *ptr)
  * Removes the block at 'index' by shifting all
  * subsequent blocks one position to the left.
  */
-void chunk_list_remove(Heap_Block_List *list, size_t index)
+void block_list_remove(MemBlockList *list, size_t index)
 {
-    assert(index < list->count && "chunk_list_remove: index out of bounds");
+    assert(index < list->count && "block_list_remove: index out of bounds");
 
     for (size_t i = index; i < list->count - 1; i++)
     {
@@ -68,9 +69,9 @@ void chunk_list_remove(Heap_Block_List *list, size_t index)
  * Appends a new block and insertion-sorts it so the
  * list stays ordered by start address.
  */
-void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
+void block_list_add(MemBlockList *list, void *start, size_t size)
 {
-    assert(list->count < HEAP_BLOCK_LIST_CAPACITY && "chunk_list_add: block list capacity exceeded");
+    assert(list->count < HEAP_BLOCK_LIST_CAPACITY && "block_list_add: block list capacity exceeded");
 
     list->blocks[list->count].start = start;
     list->blocks[list->count].size = size;
@@ -80,7 +81,7 @@ void chunk_list_add(Heap_Block_List *list, void *start, size_t size)
     {
         if (list->blocks[i - 1].start > list->blocks[i].start)
         {
-            Heap_Block temp = list->blocks[i];
+            MemBlock temp = list->blocks[i];
             list->blocks[i] = list->blocks[i - 1];
             list->blocks[i - 1] = temp;
         }
@@ -104,17 +105,17 @@ void *heap_alloc(size_t size)
         return NULL;
     }
 
-    for(size_t i = 0; i < heap_freed_blocks.count; i++){
-        const Heap_Block block = heap_freed_blocks.blocks[i];
+    for(size_t i = 0; i < free_blocks.count; i++){
+        const MemBlock block = free_blocks.blocks[i];
         if(block.size >= size){
-            chunk_list_remove(&heap_freed_blocks, i);
+            block_list_remove(&free_blocks, i);
             void *ptr = block.start;
             size_t tail_size = block.size - size;
         
-            chunk_list_add(&heap_allocated_blocks, ptr, size);
+            block_list_add(&allocated_blocks, ptr, size);
 
             if(tail_size > 0){
-                chunk_list_add(&heap_freed_blocks, (char *)ptr + size, tail_size);
+                block_list_add(&free_blocks, (char *)ptr + size, tail_size);
             }
 
             /* Detect reuse: if this address is below the high-water mark,
@@ -148,14 +149,14 @@ void heap_free(void *ptr)
         return;
     }
 
-    const int index = chunk_list_find(&heap_allocated_blocks, ptr);
+    const int index = block_list_find(&allocated_blocks, ptr);
 
     assert(index >= 0 && "heap_free: pointer not found in allocated blocks");
 
-    size_t freed_size = heap_allocated_blocks.blocks[index].size;
-    chunk_list_add(&heap_freed_blocks, heap_allocated_blocks.blocks[index].start, freed_size);
+    size_t freed_size = allocated_blocks.blocks[index].size;
+    block_list_add(&free_blocks, allocated_blocks.blocks[index].start, freed_size);
 
-    chunk_list_remove(&heap_allocated_blocks, index);
+    block_list_remove(&allocated_blocks, index);
     LOG_FREE(ptr, freed_size);
 
     /* Coalesce adjacent free blocks to reduce fragmentation */
@@ -169,16 +170,16 @@ void heap_free(void *ptr)
  */
 void heap_coalesce_free_blocks(void)
 {
-    for (size_t i = 0; i + 1 < heap_freed_blocks.count; )
+    for (size_t i = 0; i + 1 < free_blocks.count; )
     {
-        Heap_Block *curr = &heap_freed_blocks.blocks[i];
-        Heap_Block *next = &heap_freed_blocks.blocks[i + 1];
+        MemBlock *curr = &free_blocks.blocks[i];
+        MemBlock *next = &free_blocks.blocks[i + 1];
 
         if ((char *)curr->start + curr->size == (char *)next->start)
         {
             /* Merge 'next' into 'curr' */
             curr->size += next->size;
-            chunk_list_remove(&heap_freed_blocks, i + 1);
+            block_list_remove(&free_blocks, i + 1);
         }
         else
         {
@@ -187,55 +188,78 @@ void heap_coalesce_free_blocks(void)
     }
 }
 
-/*
- * Placeholder for a future garbage collector.
- * Not yet implemented — will abort if called.
- */
-void gc_collect(void *root)
-{
-    (void)root;
-    assert(0 && "gc_collect is not implemented");
-}
-
 int main(void)
 {
     print_banner();
 
-    LOG_INFO("Starting allocation test (10 blocks, freeing evens)...");
+    LOG_INFO("Starting simple allocation & reuse test...");
     printf("\n");
 
-    /* Phase 1: Allocate 10 blocks, keep all of them */
-    void *ptrs[10] = {0};
-    for (int i = 0; i < 10; i++)
-    {
-        ptrs[i] = heap_alloc(i);
-    }
+    /* 1. Allocate 3 blocks sequentially */
+    void *a = heap_alloc(10);
+    void *b = heap_alloc(20);
+    void *c = heap_alloc(30);
 
     printf("\n");
-    LOG_INFO("Freeing even-indexed blocks to create holes...");
+    LOG_INFO("Freeing the middle block (20 bytes) to create a hole...");
     printf("\n");
 
-    /* Phase 2: Free even-indexed blocks — creates holes in the middle */
-    for (int i = 2; i < 10; i += 2)
-    {
-        heap_free(ptrs[i]);
-    }
+    /* 2. Free the middle one to create a hole */
+    heap_free(b);
 
     printf("\n");
-    LOG_INFO("Re-allocating into freed holes...");
+    LOG_INFO("Allocating a new 15-byte block (should reuse the hole!)...");
     printf("\n");
 
-    /* Phase 3: Allocate again — should reuse the freed holes */
-    for (int i = 1; i <= 4; i++)
-    {
-        heap_alloc(i);
-    }
+    /* 3. Allocate something smaller than the hole — it should reuse it */
+    void *d = heap_alloc(15);
 
-    chunk_list_dump(CLR_GREEN "Allocated Blocks", CLR_GREEN, &heap_allocated_blocks);
-    chunk_list_dump(CLR_YELLOW "Free Blocks", CLR_YELLOW, &heap_freed_blocks);
+
+    block_list_dump(CLR_GREEN "Allocated Blocks", CLR_GREEN, &allocated_blocks);
+    block_list_dump(CLR_YELLOW "Free Blocks", CLR_YELLOW, &free_blocks);
 
     heap_visualize();
 
-    printf("\n");
+    printf("\n  Press [ENTER] to start live memory simulation...\n");
+    getchar();
+
+    g_logging_enabled = 0;
+    void *sim_ptrs[40] = {0};
+
+    for (int step = 1; step <= 20; step++) {
+        if (step > 1) {
+            printf("\033[15A\033[J");
+        }
+        
+        printf("  %s[Live Simulation Step %d / 20]%s\033[K\n", CLR_MAGENTA, step, CLR_RESET);
+
+        int r = rand() % 10;
+        if (r < 7) {
+            int idx = -1;
+            for(int i = 0; i < 40; i++) {
+                if(!sim_ptrs[i]) { idx = i; break; }
+            }
+            if (idx != -1) {
+                size_t sz = (rand() % 4000) + 10;
+                sim_ptrs[idx] = heap_alloc(sz);
+            }
+        } else {
+            for(int i = 0; i < 40; i++) {
+                int rnd_idx = rand() % 40;
+                if(sim_ptrs[rnd_idx]) { 
+                    heap_free(sim_ptrs[rnd_idx]);
+                    sim_ptrs[rnd_idx] = NULL;
+                    break;
+                }
+            }
+        }
+
+        heap_visualize();
+        usleep(400000); // 400 ms delay
+    }
+
+    g_logging_enabled = 1;
+    printf("\n  %sSimulation Complete!%s\n\n", CLR_GREEN, CLR_RESET);
+
     return 0;
 }
