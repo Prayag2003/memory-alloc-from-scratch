@@ -12,7 +12,6 @@ A minimal, educational **first-fit free-list memory allocator** written in C17. 
 - [Output & Demonstrations](#output--demonstrations)
   - [Basic Allocation & Freeing](#basic-allocation--freeing)
   - [Memory Reuse](#memory-reuse)
-  - [Larger Allocation](#larger-allocation)
   - [Live Simulation Mode](#live-simulation-mode)
 - [Theory](#theory)
   - [What Is a Heap?](#what-is-a-heap)
@@ -39,35 +38,31 @@ A minimal, educational **first-fit free-list memory allocator** written in C17. 
 
 ---
 
-## Output & Demonstrations
+# Output & Demonstrations
 
-### Basic Allocation & Freeing
+## Basic Allocation & Freeing
 
 The allocator runs a test that allocates 10 blocks, frees the even-indexed ones, and displays the resulting heap state with a visual memory map.
 
-![Basic allocation and free demo](./assets/demo.png)
-
-### Memory Reuse
-
-When previously freed blocks are reallocated, the allocator detects this and marks the log with **(REUSED)** — confirming that holes in the heap are being reclaimed rather than wasting memory at the tail.
-
-![Reuse detection in action](./assets/reused.png)
-
-### Larger Allocation
-
-A 100-byte allocation is placed into the heap's free tail region. The heap visualizer clearly shows the allocated portion growing relative to the total capacity.
-
-![Larger allocation example](./assets/bigger_allocation.png)
-
-### Live Simulation Mode
-
-The allocator features an **In-Place Live Simulation** mode that visually demonstrates pointer movements, memory usage, and fragmentation dynamically. Watch as `A` (allocated) and `F` (free) pointers dynamically update the underlying fragmented heap map!
-
-![Live simulation example](./assets/simulation.png)
+<img src="./assets/demo.png" alt="Basic allocation and free demo" height="750" width="500">
 
 ---
 
-## Theory
+## Memory Reuse
+
+When previously freed blocks are reallocated, the allocator detects this and marks the log with **(REUSED)** — confirming that holes in the heap are being reclaimed rather than wasting memory at the tail.
+
+<img src="./assets/reused.png" alt="Reuse detection in action" height="650" width="550">
+
+## Live Simulation Mode
+
+The allocator features an **In-Place Live Simulation** mode that visually demonstrates pointer movements, memory usage, and fragmentation dynamically. Watch as `A` (allocated) and `F` (free) pointers dynamically update the underlying fragmented heap map!
+
+<img src="./assets/simulation.png" alt="Live simulation example" width="800">
+
+---
+
+# Theory
 
 ### What Is a Heap?
 
