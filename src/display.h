@@ -17,28 +17,30 @@
 #define CLR_BG_GREEN  "\033[42m"
 #define CLR_BG_RED    "\033[41m"
 
+extern int g_logging_enabled;
+
 /* ── Logging macros ── */
 #define LOG_ALLOC(ptr, size) \
-    printf(CLR_GREEN CLR_BOLD "  [ALLOC]" CLR_RESET \
+    if(g_logging_enabled) printf(CLR_GREEN CLR_BOLD "  [ALLOC]" CLR_RESET \
            CLR_GREEN " %zu bytes at %p" CLR_RESET "\n", (size_t)(size), (void *)(ptr))
 
 #define LOG_ALLOC_REUSE(ptr, size) \
-    printf(CLR_GREEN CLR_BOLD "  [ALLOC]" CLR_RESET \
+    if(g_logging_enabled) printf(CLR_GREEN CLR_BOLD "  [ALLOC]" CLR_RESET \
            CLR_GREEN " %zu bytes at %p" CLR_RESET \
            CLR_CYAN CLR_BOLD " (REUSED)" CLR_RESET "\n", (size_t)(size), (void *)(ptr))
 
 #define LOG_FREE(ptr, size) \
-    printf(CLR_YELLOW CLR_BOLD "  [FREE] " CLR_RESET \
+    if(g_logging_enabled) printf(CLR_YELLOW CLR_BOLD "  [FREE] " CLR_RESET \
            CLR_YELLOW "%zu bytes at %p" CLR_RESET "\n", (size_t)(size), (void *)(ptr))
 
 #define LOG_ERROR(msg) \
-    printf(CLR_RED CLR_BOLD "  [ERROR] " CLR_RESET CLR_RED msg CLR_RESET "\n")
+    if(g_logging_enabled) printf(CLR_RED CLR_BOLD "  [ERROR] " CLR_RESET CLR_RED msg CLR_RESET "\n")
 
 #define LOG_INFO(msg) \
-    printf(CLR_CYAN CLR_BOLD "  [INFO]  " CLR_RESET CLR_CYAN msg CLR_RESET "\n")
+    if(g_logging_enabled) printf(CLR_CYAN CLR_BOLD "  [INFO]  " CLR_RESET CLR_CYAN msg CLR_RESET "\n")
 
 /* ── Display functions ── */
-void chunk_list_dump(const char *label, const char *color, const Heap_Block_List *list);
+void block_list_dump(const char *label, const char *color, const MemBlockList *list);
 void heap_visualize(void);
 void print_banner(void);
 
